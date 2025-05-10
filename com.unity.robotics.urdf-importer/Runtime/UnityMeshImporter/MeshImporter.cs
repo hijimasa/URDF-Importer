@@ -192,6 +192,10 @@ namespace UnityMeshImporter
                     }
                 
                     UnityEngine.Mesh uMesh = new UnityEngine.Mesh();
+                    if (uVertices.Count > 65535)
+                    {
+                        uMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+                    }
                     uMesh.vertices = uVertices.ToArray();
                     uMesh.normals = uNormals.ToArray();
                     uMesh.triangles = uIndices.ToArray();
