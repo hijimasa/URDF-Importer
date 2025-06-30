@@ -16,6 +16,7 @@ using UnityEngine;
 using System.Collections.Generic;
 using MeshProcess;
 using System.IO;
+using UnityMeshImporter;
 
 namespace Unity.Robotics.UrdfImporter
 {
@@ -91,6 +92,10 @@ namespace Unity.Robotics.UrdfImporter
             if (meshFilePath.ToLower().EndsWith(".stl"))
             {
                 meshObject = StlAssetPostProcessor.CreateStlGameObjectRuntime(meshFilePath);
+            }
+            else if (meshFilePath.ToLower().EndsWith(".obj") || meshFilePath.ToLower().EndsWith(".dae"))
+            {
+                meshObject = MeshImporter.Load(meshFilePath);
             }
             else
             {
