@@ -26,8 +26,6 @@ URDF Importer allows you to import a robot defined in [URDF](http://wiki.ros.org
 
 3. Enter the git URL for the URDF Importer with the latest version tag (currently v0.5.2) `https://github.com/hijimasa/URDF-Importer.git?path=/com.unity.robotics.urdf-importer#dev-hijimasa` in the text box and press `Enter`.
 
-4. Click `Import URDF`.
-
 ### Importing the robot using URDF file
 
 1. Copy the URDF and the associated files in the assets folder in the Project window. Make sure the [location](https://github.com/Unity-Technologies/Unity-Robotics-Hub/blob/main/tutorials/urdf_importer/urdf_appendix.md#file-hierarchy) of the mesh files is correct.
