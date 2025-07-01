@@ -31,7 +31,8 @@ namespace Unity.Robotics.UrdfImporter
             Revolute,
             Floating,
             Prismatic,
-            Planar
+            Planar,
+            Spherical
         }
 
         public int xAxis = 0;
@@ -95,6 +96,9 @@ namespace Unity.Robotics.UrdfImporter
                     break;
                 case JointTypes.Planar:
                     urdfJoint = UrdfJointPlanar.Create(linkObject);
+                    break;
+                case JointTypes.Spherical:
+                    urdfJoint = UrdfJointSpherical.Create(linkObject);
                     break;
             }
 
@@ -179,6 +183,8 @@ namespace Unity.Robotics.UrdfImporter
                     return JointTypes.Prismatic;
                 case "planar":
                     return JointTypes.Planar;
+                case "spherical":
+                    return JointTypes.Spherical;
                 default:
                     return JointTypes.Fixed;
             }
