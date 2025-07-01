@@ -15,6 +15,9 @@ limitations under the License.
 using UnityEngine;
 using System;
 using System.Collections.Generic;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace Unity.Robotics.UrdfImporter
 {
@@ -29,36 +32,136 @@ namespace Unity.Robotics.UrdfImporter
         public List<CollisionIgnore> collisionExceptions;
 
         //Current Settings
-        public static bool collidersConvex = true;
-        public static bool useUrdfInertiaData = false;
-        public static bool useGravity = true;
-        public static bool addController = true;
-        public static bool addFkRobot = true;
-        public static bool changetoCorrectedSpace = false;
+        public static bool collidersConvex
+        {
+            get
+            {
+#if UNITY_EDITOR
+                return EditorPrefs.GetBool("UrdfRobot.collidersConvex", true);
+#else
+                return true;
+#endif
+            }
+            set
+            {
+#if UNITY_EDITOR
+                EditorPrefs.SetBool("UrdfRobot.collidersConvex", value);
+#endif
+            }
+        }
+
+        public static bool useUrdfInertiaData
+        {
+            get
+            {
+#if UNITY_EDITOR
+                return EditorPrefs.GetBool("UrdfRobot.useUrdfInertiaData", false);
+#else
+                return false;
+#endif
+            }
+            set
+            {
+#if UNITY_EDITOR
+                EditorPrefs.SetBool("UrdfRobot.useUrdfInertiaData", value);
+#endif
+            }
+        }
+
+        public static bool useGravity
+        {
+            get
+            {
+#if UNITY_EDITOR
+                return EditorPrefs.GetBool("UrdfRobot.useGravity", true);
+#else
+                return true;
+#endif
+            }
+            set
+            {
+#if UNITY_EDITOR
+                EditorPrefs.SetBool("UrdfRobot.useGravity", value);
+#endif
+            }
+        }
+
+        public static bool addController
+        {
+            get
+            {
+#if UNITY_EDITOR
+                return EditorPrefs.GetBool("UrdfRobot.addController", true);
+#else
+                return true;
+#endif
+            }
+            set
+            {
+#if UNITY_EDITOR
+                EditorPrefs.SetBool("UrdfRobot.addController", value);
+#endif
+            }
+        }
+
+        public static bool addFkRobot
+        {
+            get
+            {
+#if UNITY_EDITOR
+                return EditorPrefs.GetBool("UrdfRobot.addFkRobot", true);
+#else
+                return true;
+#endif
+            }
+            set
+            {
+#if UNITY_EDITOR
+                EditorPrefs.SetBool("UrdfRobot.addFkRobot", value);
+#endif
+            }
+        }
+
+        public static bool changetoCorrectedSpace
+        {
+            get
+            {
+#if UNITY_EDITOR
+                return EditorPrefs.GetBool("UrdfRobot.changetoCorrectedSpace", false);
+#else
+                return false;
+#endif
+            }
+            set
+            {
+#if UNITY_EDITOR
+                EditorPrefs.SetBool("UrdfRobot.changetoCorrectedSpace", value);
+#endif
+            }
+        }
 
         #region Configure Robot
 
         public void SetCollidersConvex()
         {
-            foreach (MeshCollider meshCollider in GetComponentsInChildren<MeshCollider>())
-                meshCollider.convex = !collidersConvex;
             collidersConvex = !collidersConvex;
+            foreach (MeshCollider meshCollider in GetComponentsInChildren<MeshCollider>())
+                meshCollider.convex = collidersConvex;
         }
 
 
         public void SetUseUrdfInertiaData()
         {
-            foreach (UrdfInertial urdfInertial in GetComponentsInChildren<UrdfInertial>())
-                urdfInertial.useUrdfData = !useUrdfInertiaData;
             useUrdfInertiaData = !useUrdfInertiaData;
+            foreach (UrdfInertial urdfInertial in GetComponentsInChildren<UrdfInertial>())
+                urdfInertial.useUrdfData = useUrdfInertiaData;
         }
 
         public void SetRigidbodiesUseGravity()
         {
-            foreach (ArticulationBody ar in GetComponentsInChildren<ArticulationBody>())
-                ar.useGravity = !useGravity;
             useGravity = !useGravity;
-
+            foreach (ArticulationBody ar in GetComponentsInChildren<ArticulationBody>())
+                ar.useGravity = useGravity;
         }
 
         public void GenerateUniqueJointNames()
