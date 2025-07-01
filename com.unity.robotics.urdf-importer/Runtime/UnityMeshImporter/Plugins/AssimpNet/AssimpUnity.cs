@@ -1,4 +1,4 @@
-/*
+﻿/*
 * Copyright (c) 2012-2018 AssimpNet - Nicholas Woodfield
 * 
 * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -57,13 +57,13 @@ namespace Assimp
         private static void InitializePlugin()
         {
             //Only try once during runtime
-            if (s_triedLoading)
+            if(s_triedLoading)
                 return;
 
             UnmanagedLibrary libInstance = AssimpLibrary.Instance;
 
             //If already initialized, set flags and return
-            if (libInstance.IsLibraryLoaded)
+            if(libInstance.IsLibraryLoaded)
             {
                 s_assimpAvailable = true;
                 s_triedLoading = true;
