@@ -30,6 +30,7 @@ namespace Unity.Robotics.UrdfImporter
         public Limit limit;
         public Mimic mimic;
         public SafetyController safetyController;
+        public Drive drive;
 
         public Link ChildLink;
 
@@ -46,11 +47,13 @@ namespace Unity.Robotics.UrdfImporter
             limit = (node.Element("limit") != null) ? new Limit(node.Element("limit")) : null;  // required only for revolute and prismatic joints
             mimic = (node.Element("mimic") != null) ? new Mimic(node.Element("mimic")) : null;  // optional
             safetyController = (node.Element("safety_controller") != null) ? new SafetyController(node.Element("safety_controller")) : null;  // optional
+            drive = (node.Element("drive") != null) ? new Drive(node.Element("drive")) : null;  // Unity-specific extension
         }
 
         public Joint(string name, string type, string parent, string child,
             Origin origin = null, Axis axis = null, Calibration calibration = null,
-            Dynamics dynamics = null, Limit limit = null, Mimic mimic = null, SafetyController safetyController = null)
+            Dynamics dynamics = null, Limit limit = null, Mimic mimic = null, SafetyController safetyController = null,
+            Drive drive = null)
         {
             this.name = name;
             this.type = type;
@@ -63,6 +66,7 @@ namespace Unity.Robotics.UrdfImporter
             this.limit = limit;
             this.mimic = mimic;
             this.safetyController = safetyController;
+            this.drive = drive;
         }
 
         public void WriteToUrdf(XmlWriter writer)
@@ -88,6 +92,7 @@ namespace Unity.Robotics.UrdfImporter
             limit?.WriteToUrdf(writer);
             mimic?.WriteToUrdf(writer);
             safetyController?.WriteToUrdf(writer);
+            drive?.WriteToUrdf(writer);
 
             writer.WriteEndElement();
         }
@@ -313,6 +318,53 @@ namespace Unity.Robotics.UrdfImporter
                     writer.WriteAttributeString("k_position", kPosition + "");
                 }
                 writer.WriteAttributeString("k_velocity", kVelocity + "");
+
+                writer.WriteEndElement();
+            }
+        }
+
+        /// <summary>
+        /// Unity ArticulationBody xDrive settings for stiffness and damping.
+        /// These are Unity-specific extensions to URDF, read from the drive element.
+        /// Usage: <drive stiffness="1000" damping="100"/>
+        /// </summary>
+        public class Drive
+        {
+            public double stiffness;
+            public double damping;
+
+            public Drive(XElement node)
+            {
+                stiffness = node.Attribute("stiffness").ReadOptionalDouble();
+                damping = node.Attribute("damping").ReadOptionalDouble();
+            }
+
+            public Drive(double stiffness, double damping)
+            {
+                this.stiffness = stiffness;
+                this.damping = damping;
+            }
+
+            public bool HasValues()
+            {
+                return !double.IsNaN(stiffness) || !double.IsNaN(damping);
+            }
+
+            public void WriteToUrdf(XmlWriter writer)
+            {
+                if (!HasValues())
+                    return;
+
+                writer.WriteStartElement("drive");
+
+                if (!double.IsNaN(stiffness))
+                {
+                    writer.WriteAttributeString("stiffness", stiffness.ToString());
+                }
+                if (!double.IsNaN(damping))
+                {
+                    writer.WriteAttributeString("damping", damping.ToString());
+                }
 
                 writer.WriteEndElement();
             }

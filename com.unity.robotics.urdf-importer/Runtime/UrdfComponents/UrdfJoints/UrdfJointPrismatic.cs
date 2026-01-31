@@ -116,6 +116,7 @@ namespace Unity.Robotics.UrdfImporter
         {
             AdjustMovement(joint);
             SetDynamics(joint.dynamics);
+            SetDrive(joint.drive);
         }
 
         /// <summary>

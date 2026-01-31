@@ -101,6 +101,7 @@ namespace Unity.Robotics.UrdfImporter
         {
             AdjustMovement(joint);
             SetDynamics(joint.dynamics);
+            SetDrive(joint.drive);
         }
 
         protected override Joint ExportSpecificJointData(Joint joint)

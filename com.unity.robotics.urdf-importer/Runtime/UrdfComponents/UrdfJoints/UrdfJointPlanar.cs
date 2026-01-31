@@ -59,6 +59,7 @@ namespace Unity.Robotics.UrdfImporter
 #if UNITY_2020_1_OR_NEWER
             AdjustMovement(joint);
             SetDynamics(joint.dynamics);
+            SetDrive(joint.drive);
 #else
             ConfigurableJoint configurableJoint = (ConfigurableJoint)unityJoint;
             Vector3 normal = (joint.axis != null) ? GetAxis(joint.axis) : GetDefaultAxis();

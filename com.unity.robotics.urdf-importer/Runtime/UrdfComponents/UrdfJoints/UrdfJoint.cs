@@ -226,6 +226,37 @@ namespace Unity.Robotics.UrdfImporter
             }
         }
 
+        /// <summary>
+        /// Applies Unity-specific stiffness and damping settings to the ArticulationBody xDrive.
+        /// These values are read from the URDF drive element: <drive stiffness="..." damping="..."/>
+        /// Note: forceLimit is set from <limit effort="..."/> in AdjustMovement().
+        /// </summary>
+        protected void SetDrive(Joint.Drive drive)
+        {
+#if UNITY_2020_1_OR_NEWER
+            if (unityJoint == null)
+            {
+                unityJoint = GetComponent<ArticulationBody>();
+            }
+
+            if (drive != null && drive.HasValues())
+            {
+                ArticulationDrive articulationDrive = unityJoint.xDrive;
+
+                if (!double.IsNaN(drive.stiffness))
+                {
+                    articulationDrive.stiffness = (float)drive.stiffness;
+                }
+                if (!double.IsNaN(drive.damping))
+                {
+                    articulationDrive.damping = (float)drive.damping;
+                }
+
+                unityJoint.xDrive = articulationDrive;
+            }
+#endif
+        }
+
         #endregion
 
         #region Export
