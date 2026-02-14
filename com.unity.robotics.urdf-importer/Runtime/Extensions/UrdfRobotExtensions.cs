@@ -268,17 +268,56 @@ namespace Unity.Robotics.UrdfImporter
         private static void CreateCollisionExceptions(Robot robot, GameObject robotGameObject)
         {
             List<CollisionIgnore> CollisionList = new List<CollisionIgnore>();
+
+            // Automatically ignore collisions between parent-child links connected by joints
+            foreach (Joint joint in robot.joints)
+            {
+                Transform parentObj = robotGameObject.transform.Find(joint.parent)
+                                   ?? FindInChildrenByName(robotGameObject.transform, joint.parent);
+                Transform childObj = robotGameObject.transform.Find(joint.child)
+                                  ?? FindInChildrenByName(robotGameObject.transform, joint.child);
+                if (parentObj != null && childObj != null)
+                {
+                    Transform collisionParent = parentObj.Find(collisionObjectName);
+                    Transform collisionChild = childObj.Find(collisionObjectName);
+                    if (collisionParent != null && collisionChild != null)
+                    {
+                        CollisionList.Add(new CollisionIgnore(collisionParent, collisionChild));
+                    }
+                }
+            }
+
+            // Also add manually specified <disable_collision> pairs
             if (robot.ignoreCollisionPair.Count > 0)
             {
                 foreach (System.Tuple<string, string> ignoreCollision in robot.ignoreCollisionPair)
                 {
-                    Transform collisionObject1 = GameObject.Find(ignoreCollision.Item1).transform.Find(collisionObjectName);
-                    Transform collisionObject2 = GameObject.Find(ignoreCollision.Item2).transform.Find(collisionObjectName);
-
-                    CollisionList.Add(new CollisionIgnore(collisionObject1, collisionObject2));
+                    Transform obj1 = robotGameObject.transform.Find(ignoreCollision.Item1)
+                                  ?? FindInChildrenByName(robotGameObject.transform, ignoreCollision.Item1);
+                    Transform obj2 = robotGameObject.transform.Find(ignoreCollision.Item2)
+                                  ?? FindInChildrenByName(robotGameObject.transform, ignoreCollision.Item2);
+                    if (obj1 != null && obj2 != null)
+                    {
+                        Transform collisionObject1 = obj1.Find(collisionObjectName);
+                        Transform collisionObject2 = obj2.Find(collisionObjectName);
+                        if (collisionObject1 != null && collisionObject2 != null)
+                        {
+                            CollisionList.Add(new CollisionIgnore(collisionObject1, collisionObject2));
+                        }
+                    }
                 }
             }
             robotGameObject.GetComponent<UrdfRobot>().collisionExceptions = CollisionList;
+        }
+
+        private static Transform FindInChildrenByName(Transform parent, string name)
+        {
+            foreach (Transform child in parent.GetComponentsInChildren<Transform>())
+            {
+                if (child.name == name)
+                    return child;
+            }
+            return null;
         }
 
         #endregion
