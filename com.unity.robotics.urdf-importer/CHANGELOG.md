@@ -12,6 +12,13 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Added
 
+`UrdfAssetPathHandler.SetSearchPaths` — extra roots to look under when an asset cannot be
+found relative to the URDF file. Consulted only after the normal resolution fails, so URDFs
+that already load are unaffected. Needed when the URDF did not come from a file (a
+description passed as a string) or when `package://` names a package that lives elsewhere.
+`AMENT_PREFIX_PATH` is honoured as well, so `package://` resolves with no extra setup in a
+sourced ROS 2 environment.
+
 ### Changed
 
 ### Deprecated
