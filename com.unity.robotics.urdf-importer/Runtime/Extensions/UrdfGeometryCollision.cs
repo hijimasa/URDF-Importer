@@ -25,7 +25,23 @@ namespace Unity.Robotics.UrdfImporter
         public static List<string> UsedTemplateFiles => s_UsedTemplateFiles;
         static List<string> s_UsedTemplateFiles = new List<string>();
         static List<string> s_CreatedAssetNames = new List<string>();
-        
+
+        /// <summary>
+        /// Identifies a mesh asset by its full path without the extension, normalized to
+        /// forward slashes. Keying on the full path keeps meshes that share a file name in
+        /// different directories (e.g. visual and collision copies of a link) distinct.
+        /// </summary>
+        public static string GetAssetKey(string assetPath)
+        {
+            if (string.IsNullOrEmpty(assetPath))
+            {
+                return assetPath;
+            }
+            string directory = Path.GetDirectoryName(assetPath) ?? "";
+            string fileName = Path.GetFileNameWithoutExtension(assetPath);
+            return Path.Combine(directory, fileName).Replace('\\', '/');
+        }
+
         public static void Create(Transform parent, GeometryTypes geometryType, Link.Geometry geometry = null)
         {
             GameObject geometryGameObject = null;
@@ -87,24 +103,32 @@ namespace Unity.Robotics.UrdfImporter
 
         private static GameObject CreateMeshColliderRuntime(Link.Geometry.Mesh mesh)
         {
-            string meshFilePath = UrdfAssetPathHandler.GetRelativeAssetPathFromUrdfPath(mesh.filename, false);
             GameObject meshObject = null;
-            if (meshFilePath.ToLower().EndsWith(".stl"))
+            try
             {
-                meshObject = StlAssetPostProcessor.CreateStlGameObjectRuntime(meshFilePath);
+                string meshFilePath = UrdfAssetPathHandler.GetRelativeAssetPathFromUrdfPath(mesh.filename, false);
+                if (meshFilePath.ToLower().EndsWith(".stl"))
+                {
+                    meshObject = StlAssetPostProcessor.CreateStlGameObjectRuntime(meshFilePath);
+                }
+                else if (meshFilePath.ToLower().EndsWith(".obj") || meshFilePath.ToLower().EndsWith(".dae"))
+                {
+                    meshObject = MeshImporter.Load(meshFilePath);
+                }
+
+                if (meshObject != null)
+                {
+                    ConvertMeshToColliders(meshObject);
+                }
             }
-            else if (meshFilePath.ToLower().EndsWith(".obj") || meshFilePath.ToLower().EndsWith(".dae"))
+            catch (System.Exception ex)
             {
-                meshObject = MeshImporter.Load(meshFilePath);
+                Debug.LogAssertion(ex);
             }
-            else
+
+            if (meshObject == null)
             {
                 Debug.LogError("Unable to create mesh collider for the mesh: " + mesh.filename);
-            }
-            
-            if (meshObject != null)
-            {
-                ConvertMeshToColliders(meshObject);
             }
             return meshObject;
         }
@@ -197,6 +221,7 @@ namespace Unity.Robotics.UrdfImporter
             else
             {
                 string templateFileName = "";
+                string templateFileKey = "";
                 string filePath = "";
                 int meshIndex = 0;
                 if (!RuntimeUrdf.IsRuntimeMode() && location != null)
@@ -204,20 +229,44 @@ namespace Unity.Robotics.UrdfImporter
                     string meshFilePath = UrdfAssetPathHandler.GetRelativeAssetPathFromUrdfPath(location, false);
                     templateFileName = Path.GetFileNameWithoutExtension(meshFilePath);
                     filePath = Path.GetDirectoryName(meshFilePath);
+                    templateFileKey = GetAssetKey(meshFilePath);
                 }
 
                 foreach (MeshFilter meshFilter in meshFilters)
-                {                  
+                {
                     GameObject child = meshFilter.gameObject;
                     VHACD decomposer = child.AddComponent<VHACD>();
-                    List<Mesh> colliderMeshes = decomposer.GenerateConvexMeshes(meshFilter.sharedMesh);
+                    List<Mesh> colliderMeshes = null;
+                    try
+                    {
+                        colliderMeshes = decomposer.GenerateConvexMeshes(meshFilter.sharedMesh);
+                    }
+                    catch (System.Exception e)
+                    {
+                        Debug.LogWarning($"VHACD failed to decompose the mesh on {child.name}: {e.Message} " +
+                                         "Falling back to a convex mesh collider for this mesh.");
+                    }
+
+                    if (colliderMeshes == null)
+                    {
+                        Component.DestroyImmediate(child.GetComponent<VHACD>());
+                        MeshCollider fallbackCollider = child.AddComponent<MeshCollider>();
+                        fallbackCollider.sharedMesh = meshFilter.sharedMesh;
+                        fallbackCollider.convex = setConvex;
+                        Object.DestroyImmediate(child.GetComponent<MeshRenderer>());
+                        Object.DestroyImmediate(meshFilter);
+                        continue;
+                    }
+
                     foreach (Mesh collider in colliderMeshes)
                     {
                         var c = collider;
                         if (!RuntimeUrdf.IsRuntimeMode())
                         {
                             meshIndex++;
-                            string name = $"{filePath}/{templateFileName}_{meshIndex}.asset";
+                            // "_vhacd_" namespaces the hull assets so they can never collide with
+                            // the "{name}_{i}.asset" meshes created when an stl is post processed.
+                            string name = $"{filePath}/{templateFileName}_vhacd_{meshIndex}.asset";
                             // Only create new asset if one doesn't exist or should overwrite
                             if ((UrdfRobotExtensions.importsettings.OverwriteExistingPrefabs || !RuntimeUrdf.AssetExists(name)) && !s_CreatedAssetNames.Contains(name))
                             {
@@ -225,7 +274,7 @@ namespace Unity.Robotics.UrdfImporter
                                 RuntimeUrdf.AssetDatabase_CreateAsset(c, name);
                                 RuntimeUrdf.AssetDatabase_SaveAssets();
                                 s_CreatedAssetNames.Add(name);
-                                s_UsedTemplateFiles.Add(templateFileName);
+                                s_UsedTemplateFiles.Add(templateFileKey);
                             }
                             else
                             {

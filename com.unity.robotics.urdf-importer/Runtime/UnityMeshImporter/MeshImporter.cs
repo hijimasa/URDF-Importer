@@ -118,17 +118,24 @@ namespace UnityMeshImporter
                     // Texture
                     if (m.HasTextureDiffuse)
                     {
-                        Texture2D uTexture = new Texture2D(2,2);
                         string texturePath = Path.Combine(parentDir, m.TextureDiffuse.FilePath);
-                        
-                        byte[] byteArray = File.ReadAllBytes(texturePath);
-                        bool isLoaded = uTexture.LoadImage(byteArray);
-                        if (!isLoaded)
+                        try
                         {
-                            throw new Exception("Cannot find texture file: " + texturePath);
+                            Texture2D uTexture = new Texture2D(2,2);
+                            byte[] byteArray = File.ReadAllBytes(texturePath);
+                            bool isLoaded = uTexture.LoadImage(byteArray);
+                            if (!isLoaded)
+                            {
+                                throw new Exception("Cannot load texture file: " + texturePath);
+                            }
+
+                            uMaterial.SetTexture("_MainTex", uTexture);
                         }
-                        
-                        uMaterial.SetTexture("_MainTex", uTexture);
+                        catch (Exception e)
+                        {
+                            Debug.LogWarning($"Failed to load texture {texturePath} for {meshPath}: {e.Message} " +
+                                             "Continuing with an untextured material.");
+                        }
                     }
 
                     uMaterials.Add(uMaterial);
@@ -201,7 +208,19 @@ namespace UnityMeshImporter
                     uMesh.triangles = uIndices.ToArray();
                     uMesh.uv = uUv.ToArray();
 
-                    uMeshAndMats.Add(new MeshMaterialBinding(m.Name, uMesh, uMaterials[m.MaterialIndex]));
+                    Material uMeshMaterial;
+                    if (m.MaterialIndex >= 0 && m.MaterialIndex < uMaterials.Count)
+                    {
+                        uMeshMaterial = uMaterials[m.MaterialIndex];
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"Mesh '{m.Name}' in {meshPath} references material index {m.MaterialIndex} " +
+                                         $"but only {uMaterials.Count} materials were loaded. Using a default material.");
+                        uMeshMaterial = MaterialExtensions.CreateBasicMaterial();
+                    }
+
+                    uMeshAndMats.Add(new MeshMaterialBinding(m.Name, uMesh, uMeshMaterial));
                 }
             }
             

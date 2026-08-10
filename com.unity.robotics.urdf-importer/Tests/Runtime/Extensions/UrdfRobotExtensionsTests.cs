@@ -150,8 +150,8 @@ namespace Unity.Robotics.UrdfImporter.Tests
                 {
                     "Assets/Tests",
                     "Packages/com.unity.robotics.urdf-importer/Tests/Runtime/Assets/URDF/cube/Materials",
-                    "Packages/com.unity.robotics.urdf-importer/Tests/Runtime/Assets/URDF/cube/meshes/cube_1.asset",
-                    "Packages/com.unity.robotics.urdf-importer/Tests/Runtime/Assets/URDF/cube/meshes/cube_1.asset.meta"
+                    "Packages/com.unity.robotics.urdf-importer/Tests/Runtime/Assets/URDF/cube/meshes/cube_vhacd_1.asset",
+                    "Packages/com.unity.robotics.urdf-importer/Tests/Runtime/Assets/URDF/cube/meshes/cube_vhacd_1.asset.meta"
                 }, outFailedPaths);
         }
     }

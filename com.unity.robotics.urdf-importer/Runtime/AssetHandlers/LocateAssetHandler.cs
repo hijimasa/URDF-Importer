@@ -28,10 +28,15 @@ namespace Unity.Robotics.UrdfImporter
             var originalUrdfPath = UrdfAssetPathHandler.GetRelativeAssetPathFromUrdfPath(urdfFileName, false);
             if (originalUrdfPath.ToLower().EndsWith(".stl"))
             {// it is an asset that requires post processing
-                if ((UrdfRobotExtensions.importsettings.OverwriteExistingPrefabs || !RuntimeUrdf.AssetExists(fileAssetPath, true)) && !UrdfGeometryCollision.UsedTemplateFiles.Contains(Path.GetFileNameWithoutExtension(fileAssetPath)))
+                // Compare full asset paths (not just file names) so that a collision mesh does not
+                // suppress the prefab of a same-named visual mesh in another directory (#230, #202),
+                // and keep the dedup from vetoing an explicit request to overwrite existing prefabs.
+                if (UrdfRobotExtensions.importsettings.OverwriteExistingPrefabs ||
+                    (!RuntimeUrdf.AssetExists(fileAssetPath, true) &&
+                     !UrdfGeometryCollision.UsedTemplateFiles.Contains(UrdfGeometryCollision.GetAssetKey(fileAssetPath))))
                 {// post process again to (re)create prefabs
                     StlAssetPostProcessor.PostprocessStlFile(originalUrdfPath);
-                }                
+                }
             }
 
             T assetObject = RuntimeUrdf.AssetDatabase_LoadAssetAtPath<T>(fileAssetPath);

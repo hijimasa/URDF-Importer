@@ -158,7 +158,7 @@ namespace Unity.Robotics.UrdfImporter.Tests
             Assert.IsNotNull(AssetDatabase.FindAssets("cube t:mesh", new string[] {"Packages/com.unity.robotics.urdf-importer/Tests/Runtime/Assets/URDF/cube/meshes"}));
 
             LogAssert.ignoreFailingMessages = false;
-            AssetDatabase.DeleteAsset("Packages/com.unity.robotics.urdf-importer/Tests/Runtime/Assets/URDF/cube/meshes/cube_1.asset");
+            AssetDatabase.DeleteAsset("Packages/com.unity.robotics.urdf-importer/Tests/Runtime/Assets/URDF/cube/meshes/cube_vhacd_1.asset");
             Object.DestroyImmediate(parent.gameObject);
         }
 
@@ -186,8 +186,33 @@ namespace Unity.Robotics.UrdfImporter.Tests
             // Verify geometry created in Assets
             Assert.IsNotNull(AssetDatabase.FindAssets("cube t:mesh", new string[] {"Packages/com.unity.robotics.urdf-importer/Tests/Runtime/Assets/URDF/cube/meshes"}));
 
-            AssetDatabase.DeleteAsset("Packages/com.unity.robotics.urdf-importer/Tests/Runtime/Assets/URDF/cube/meshes/cube_1.asset");
+            AssetDatabase.DeleteAsset("Packages/com.unity.robotics.urdf-importer/Tests/Runtime/Assets/URDF/cube/meshes/cube_vhacd_1.asset");
             Object.DestroyImmediate(parent.gameObject);
+        }
+
+        [Test]
+        public void GetAssetKey_SameNameDifferentDirectories_Distinct()
+        {
+            // A collision mesh must not suppress a same-named visual mesh in another directory (#230, #202)
+            Assert.AreNotEqual(
+                UrdfGeometryCollision.GetAssetKey("Assets/meshes/visual/link1.stl"),
+                UrdfGeometryCollision.GetAssetKey("Assets/meshes/collision/link1.stl"));
+        }
+
+        [Test]
+        public void GetAssetKey_ExtensionIgnored_PrefabMatchesSourceStl()
+        {
+            // The key recorded from the source stl must match the key of the prefab derived from it
+            Assert.AreEqual(
+                UrdfGeometryCollision.GetAssetKey("Assets/meshes/visual/link1.stl"),
+                UrdfGeometryCollision.GetAssetKey("Assets/meshes/visual/link1.prefab"));
+        }
+
+        [Test]
+        public void GetAssetKey_BackslashSeparators_Normalized()
+        {
+            Assert.AreEqual("Assets/meshes/link1",
+                UrdfGeometryCollision.GetAssetKey(@"Assets\meshes\link1.stl"));
         }
 
         [Test]
