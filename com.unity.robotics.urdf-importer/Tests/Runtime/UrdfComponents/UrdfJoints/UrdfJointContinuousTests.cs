@@ -50,9 +50,12 @@ namespace Unity.Robotics.UrdfImporter.Tests
             UrdfJoint.Create(baseObject, UrdfJoint.JointTypes.Fixed);
             UrdfJoint joint = UrdfJointContinuous.Create(linkObject);
             ArticulationBody articulationBody = linkObject.GetComponent<ArticulationBody>();
-            articulationBody.jointPosition = new ArticulationReducedSpace(1, 2, 3);
-            articulationBody.jointVelocity = new ArticulationReducedSpace(4, 5, 6);
-            articulationBody.jointForce = new ArticulationReducedSpace(7, 8, 9);
+            // A revolute/prismatic articulation has exactly one degree of freedom. Writing a
+            // three-dof reduced space was silently accepted by older PhysX versions, but
+            // Unity 6 asserts on the dof-count mismatch.
+            articulationBody.jointPosition = new ArticulationReducedSpace(1);
+            articulationBody.jointVelocity = new ArticulationReducedSpace(4);
+            articulationBody.jointForce = new ArticulationReducedSpace(7);
 
             Assert.AreEqual(1, joint.GetPosition());
             Assert.AreEqual(4, joint.GetVelocity());

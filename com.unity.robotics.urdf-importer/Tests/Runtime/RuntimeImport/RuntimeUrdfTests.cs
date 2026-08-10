@@ -136,10 +136,12 @@ namespace Unity.Robotics.UrdfImporter.Tests
         }
 
         [Test]
-        public void AssetDatabase_CreateAsset_GameObject()
+        public void AssetDatabase_CreateAsset_Mesh()
         {
+            // A Mesh saved as .asset matches how the importer stores meshes; an
+            // extensionless path is rejected by CreateAsset from Unity 6 on.
             RuntimeUrdf.runtimeModeEnabled = false;
-            RuntimeUrdf.AssetDatabase_CreateAsset(new TextAsset("TextAsset content"), $"{createAssetPath}/TestAsset3", true);
+            RuntimeUrdf.AssetDatabase_CreateAsset(new Mesh(), $"{createAssetPath}/TestAsset3.asset", true);
             Assert.IsNotNull(AssetDatabase.FindAssets("TestAsset3", new string[] { createAssetPath }));
         }
 

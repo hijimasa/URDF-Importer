@@ -93,7 +93,10 @@ namespace Unity.Robotics.UrdfImporter.Tests
         public void IsValidAssetPath_Nonruntime_Success()
         {
             RuntimeUrdf.runtimeModeEnabled = false;
-            AssetDatabase.CreateAsset(new TextAsset("TestAsset"), $"{assetRoot}/TestAsset.txt");
+            // CreateAsset refuses the 'txt' type from Unity 6 on; write the file and
+            // import it instead, as the AssetDatabase error message suggests.
+            File.WriteAllText($"{assetRoot}/TestAsset.txt", "TestAsset");
+            AssetDatabase.ImportAsset($"{assetRoot}/TestAsset.txt");
 
             Assert.IsFalse(UrdfAssetPathHandler.IsValidAssetPath("Invalid/Asset/Path"));
             Assert.IsTrue(UrdfAssetPathHandler.IsValidAssetPath($"{assetRoot}/TestAsset.txt"));

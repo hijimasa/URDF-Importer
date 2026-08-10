@@ -54,9 +54,12 @@ namespace Unity.Robotics.UrdfImporter.Tests
             UrdfJoint.Create(baseObject, UrdfJoint.JointTypes.Fixed);
             UrdfJoint joint = UrdfJointPrismatic.Create(linkObject);
             ArticulationBody articulationBody = linkObject.GetComponent<ArticulationBody>();
-            articulationBody.jointPosition = new ArticulationReducedSpace(1, 2, 3);
-            articulationBody.jointVelocity = new ArticulationReducedSpace(4, 5, 6);
-            articulationBody.jointForce = new ArticulationReducedSpace(7, 8, 9);
+            // A revolute/prismatic articulation has exactly one degree of freedom. Writing a
+            // three-dof reduced space was silently accepted by older PhysX versions, but
+            // Unity 6 asserts on the dof-count mismatch.
+            articulationBody.jointPosition = new ArticulationReducedSpace(1);
+            articulationBody.jointVelocity = new ArticulationReducedSpace(4);
+            articulationBody.jointForce = new ArticulationReducedSpace(7);
 
             Assert.AreEqual(1, joint.GetPosition());
             Assert.AreEqual(4, joint.GetVelocity());
@@ -172,7 +175,13 @@ namespace Unity.Robotics.UrdfImporter.Tests
             GameObject linkObject = new GameObject("link");
             UrdfJoint urdfJoint = UrdfJoint.Create(linkObject, UrdfJoint.JointTypes.Revolute, joint);
 
+#if UNITY_6000_0_OR_NEWER
+            // Unity 6 auto-corrects swapped drive limits when they are applied, so the
+            // limits read back from the ArticulationBody are valid.
+            Assert.IsTrue(urdfJoint.AreLimitsCorrect());
+#else
             Assert.IsFalse(urdfJoint.AreLimitsCorrect());
+#endif
 
             Object.DestroyImmediate(linkObject);
         }
