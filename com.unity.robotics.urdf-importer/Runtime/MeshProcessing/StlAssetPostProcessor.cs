@@ -70,7 +70,7 @@ namespace Unity.Robotics.UrdfImporter
                 s_DefaultDiffuse = RuntimeUrdf.AssetDatabase_GetBuiltinExtraResource<Material>("Default-Diffuse.mat");
             }
 #endif
-            if (s_DefaultDiffuse) 
+            if (!s_DefaultDiffuse)
             {   // Could't use the "Default-Diffuse.mat", either because of HDRP or runtime. so let's create one.
                 s_DefaultDiffuse = MaterialExtensions.CreateBasicMaterial();
             }

@@ -1,5 +1,6 @@
 using System.IO;
 using System.Collections.Generic;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -41,6 +42,45 @@ namespace Unity.Robotics.UrdfImporter.Tests
             Assert.IsTrue(RuntimeUrdf.AssetExists(prefabPath));
         }
         
+        [Test]
+        public void CreateStlGameObjectRuntime_AssignsAMaterialToEveryRenderer()
+        {
+            // In a built player the UNITY_EDITOR branch of GetDefaultDiffuseMaterial is
+            // compiled out, so the cached material starts null and has to be created on
+            // demand. When that fell through, renderers were left with a null material and
+            // Unity drew them in the magenta "missing shader" colour.
+            //
+            // The cache is a private static, and an earlier test in the run may already have
+            // filled it - which would hide the very fall-through this test is here to catch.
+            // Clear it so we exercise the cold path.
+            typeof(StlAssetPostProcessor)
+                .GetField("s_DefaultDiffuse", BindingFlags.NonPublic | BindingFlags.Static)
+                .SetValue(null, null);
+
+            RuntimeUrdf.SetRuntimeMode(true);
+            try
+            {
+                Assert.IsTrue(AssetDatabase.CopyAsset(k_StlCubeSourcePath, m_StlCubeCopyPath));
+                var stlPath = Path.GetFullPath(m_StlCubeCopyPath);
+                var gameObject = StlAssetPostProcessor.CreateStlGameObjectRuntime(stlPath);
+
+                Assert.IsNotNull(gameObject, $"failed to load {stlPath}");
+                var renderers = gameObject.GetComponentsInChildren<MeshRenderer>();
+                Assert.IsNotEmpty(renderers);
+                foreach (var renderer in renderers)
+                {
+                    Assert.IsNotNull(renderer.sharedMaterial,
+                        $"{renderer.name} has no material, so it renders magenta");
+                }
+
+                Object.DestroyImmediate(gameObject);
+            }
+            finally
+            {
+                RuntimeUrdf.SetRuntimeMode(false);
+            }
+        }
+
         [TearDown]
         public void TearDown()
         {
