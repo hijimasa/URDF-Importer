@@ -81,6 +81,33 @@ namespace Unity.Robotics.UrdfImporter.Tests
             }
         }
 
+        [Test]
+        public void StlPostprocess_PrefabKeepsMeshAndMaterial()
+        {
+            // The prefab is the source of truth for anything instantiated from it later.
+            // If its MeshFilter/MeshRenderer are saved empty, the part only looks right
+            // while the instance override survives - turning the robot into a prefab drops
+            // the override and the part disappears. A material that exists only in memory
+            // cannot be serialised into a prefab, so it has to be an asset.
+            Assert.IsTrue(AssetDatabase.CopyAsset(k_StlCubeSourcePath, m_StlCubeCopyPath));
+            StlAssetPostProcessor.PostprocessStlFile(m_StlCubeCopyPath);
+
+            var prefabPath = StlAssetPostProcessor.GetPrefabAssetPath(m_StlCubeCopyPath);
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            Assert.IsNotNull(prefab, $"no prefab at {prefabPath}");
+
+            var filters = prefab.GetComponentsInChildren<MeshFilter>();
+            Assert.IsNotEmpty(filters);
+            foreach (var filter in filters)
+            {
+                Assert.IsNotNull(filter.sharedMesh, $"{filter.name} has no mesh in the prefab");
+                var renderer = filter.GetComponent<MeshRenderer>();
+                Assert.IsNotNull(renderer.sharedMaterial, $"{renderer.name} has no material in the prefab");
+                Assert.IsTrue(AssetDatabase.Contains(renderer.sharedMaterial),
+                    $"{renderer.name}'s material is not an asset, so it cannot be stored in a prefab");
+            }
+        }
+
         [TearDown]
         public void TearDown()
         {

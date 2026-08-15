@@ -20,7 +20,7 @@ namespace Unity.Robotics.UrdfImporter
     {
         public static void Create(Transform parent, GeometryTypes type)
         {
-            GameObject visualObject = new GameObject("unnamed");
+            GameObject visualObject = new GameObject(UniqueChildName(parent, null));
             visualObject.transform.SetParentAndAlign(parent);
             UrdfVisual urdfVisual = visualObject.AddComponent<UrdfVisual>();
 
@@ -33,7 +33,7 @@ namespace Unity.Robotics.UrdfImporter
 
         public static void Create(Transform parent, Link.Visual visual)
         {
-            GameObject visualObject = new GameObject(visual.name ?? "unnamed");
+            GameObject visualObject = new GameObject(UniqueChildName(parent, visual.name));
             visualObject.transform.SetParentAndAlign(parent);
             UrdfVisual urdfVisual = visualObject.AddComponent<UrdfVisual>();
 
@@ -65,5 +65,32 @@ namespace Unity.Robotics.UrdfImporter
 
             return new Link.Visual(geometry, visualName, UrdfOrigin.ExportOriginData(urdfVisual.transform), material);
         }
-    }
+    
+        /// <summary>
+        /// Make a name that is not already taken by a sibling.
+        /// </summary>
+        /// <remarks>
+        /// URDF makes the name attribute of visual and collision optional, so a link with
+        /// several of them ends up with several children all called "unnamed". Duplicate
+        /// sibling names make prefab override paths ambiguous - overrides recorded against
+        /// one of them can be re-applied to another after a reimport - and they break any
+        /// lookup that addresses a part by path. Number them instead.
+        /// </remarks>
+        private static string UniqueChildName(Transform parent, string desired)
+        {
+            string baseName = string.IsNullOrEmpty(desired) ? "unnamed" : desired;
+            if (parent == null || parent.Find(baseName) == null)
+            {
+                return baseName;
+            }
+            for (int i = 1; ; i++)
+            {
+                string candidate = baseName + "_" + i;
+                if (parent.Find(candidate) == null)
+                {
+                    return candidate;
+                }
+            }
+        }
+}
 }

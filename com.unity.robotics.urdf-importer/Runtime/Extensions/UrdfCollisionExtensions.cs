@@ -20,7 +20,7 @@ namespace Unity.Robotics.UrdfImporter
     {
         public static UrdfCollision Create(Transform parent, GeometryTypes type, Transform visualToCopy = null)
         {
-            GameObject collisionObject = new GameObject("unnamed");
+            GameObject collisionObject = new GameObject(UniqueChildName(parent, null));
             collisionObject.transform.SetParentAndAlign(parent);
 
             UrdfCollision urdfCollision = collisionObject.AddComponent<UrdfCollision>();
@@ -55,7 +55,7 @@ namespace Unity.Robotics.UrdfImporter
 
         public static UrdfCollision Create(Transform parent, Link.Collision collision)
         {
-            GameObject collisionObject = new GameObject("unnamed");
+            GameObject collisionObject = new GameObject(UniqueChildName(parent, null));
             collisionObject.transform.SetParentAndAlign(parent);
             UrdfCollision urdfCollision = collisionObject.AddComponent<UrdfCollision>();
             urdfCollision.geometryType = UrdfGeometry.GetGeometryType(collision.geometry);
@@ -73,5 +73,32 @@ namespace Unity.Robotics.UrdfImporter
 
             return new Link.Collision(geometry, collisionName, UrdfOrigin.ExportOriginData(urdfCollision.transform));
         }
-    }
+    
+        /// <summary>
+        /// Make a name that is not already taken by a sibling.
+        /// </summary>
+        /// <remarks>
+        /// URDF makes the name attribute of visual and collision optional, so a link with
+        /// several of them ends up with several children all called "unnamed". Duplicate
+        /// sibling names make prefab override paths ambiguous - overrides recorded against
+        /// one of them can be re-applied to another after a reimport - and they break any
+        /// lookup that addresses a part by path. Number them instead.
+        /// </remarks>
+        private static string UniqueChildName(Transform parent, string desired)
+        {
+            string baseName = string.IsNullOrEmpty(desired) ? "unnamed" : desired;
+            if (parent == null || parent.Find(baseName) == null)
+            {
+                return baseName;
+            }
+            for (int i = 1; ; i++)
+            {
+                string candidate = baseName + "_" + i;
+                if (parent.Find(candidate) == null)
+                {
+                    return candidate;
+                }
+            }
+        }
+}
 }

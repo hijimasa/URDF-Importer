@@ -27,6 +27,9 @@ namespace Unity.Robotics.UrdfImporter
     public class StlAssetPostProcessor
     {
         private static Material s_DefaultDiffuse = null;
+        // Shared default material written next to the meshes for URP/HDRP, where
+        // there is no built-in material asset a prefab can reference.
+        private const string DefaultMaterialAssetName = "UrdfDefaultDiffuse.mat";
 
         public static void PostprocessStlFile(string stlFile)
         {
@@ -61,20 +64,62 @@ namespace Unity.Robotics.UrdfImporter
             Object.DestroyImmediate(gameObject);
         }
 
-        private static Material GetDefaultDiffuseMaterial() 
+        /// <summary>Material used at runtime, where nothing can be an asset anyway.</summary>
+        private static Material GetDefaultDiffuseMaterial()
         {
-#if UNITY_EDITOR
-            // also save the material in the Assets
-            if (!RuntimeUrdf.IsRuntimeMode() && MaterialExtensions.GetRenderPipelineType() == MaterialExtensions.RenderPipelineType.Standard)
-            {
-                s_DefaultDiffuse = RuntimeUrdf.AssetDatabase_GetBuiltinExtraResource<Material>("Default-Diffuse.mat");
-            }
-#endif
             if (!s_DefaultDiffuse)
             {   // Could't use the "Default-Diffuse.mat", either because of HDRP or runtime. so let's create one.
                 s_DefaultDiffuse = MaterialExtensions.CreateBasicMaterial();
             }
             return s_DefaultDiffuse;
+        }
+
+        /// <summary>
+        /// Material for the prefab written next to an STL. It must be an asset: a prefab
+        /// cannot serialize a reference to a material that only exists in memory, so
+        /// saving one leaves the MeshRenderer with a null material. That shows up later as
+        /// a part that renders as "no material" and, once the robot itself is turned into a
+        /// prefab, as a part that disappears — the visible material was only ever an
+        /// instance override on top of the null stored in the prefab.
+        /// </summary>
+        private static Material GetPrefabDiffuseMaterial(string stlFile)
+        {
+#if UNITY_EDITOR
+            if (!RuntimeUrdf.IsRuntimeMode())
+            {
+                // The built-in pipeline has a material asset we can point at.
+                if (MaterialExtensions.GetRenderPipelineType() == MaterialExtensions.RenderPipelineType.Standard)
+                {
+                    Material builtin =
+                        RuntimeUrdf.AssetDatabase_GetBuiltinExtraResource<Material>("Default-Diffuse.mat");
+                    if (builtin != null)
+                    {
+                        return builtin;
+                    }
+                }
+
+                // URP/HDRP have no referenceable built-in material, so keep one asset per
+                // mesh folder and reuse it.
+                string directory = Path.GetDirectoryName(stlFile);
+                string materialPath = string.IsNullOrEmpty(directory)
+                    ? DefaultMaterialAssetName
+                    : Path.Combine(directory, DefaultMaterialAssetName);
+
+                Material asset = RuntimeUrdf.AssetDatabase_LoadAssetAtPath<Material>(materialPath);
+                if (asset == null)
+                {
+                    asset = MaterialExtensions.CreateBasicMaterial();
+                    RuntimeUrdf.AssetDatabase_CreateAsset(asset, materialPath);
+                }
+                if (asset != null)
+                {
+                    return asset;
+                }
+                Debug.LogWarning($"Could not create {materialPath}; the prefab for {stlFile} " +
+                                 "will be saved without a material.");
+            }
+#endif
+            return GetDefaultDiffuseMaterial();
         }
 
         private static GameObject CreateStlParent(string stlFile)
@@ -84,23 +129,33 @@ namespace Unity.Robotics.UrdfImporter
                 return null;
 
             GameObject parent = new GameObject(Path.GetFileNameWithoutExtension(stlFile));
-            Material material = GetDefaultDiffuseMaterial();
+            Material material = GetPrefabDiffuseMaterial(stlFile);
 
             for (int i = 0; i < meshes.Length; i++)
             {
                 string meshAssetPath = GetMeshAssetPath(stlFile, i);
                 RuntimeUrdf.AssetDatabase_CreateAsset(meshes[i], meshAssetPath);
-                GameObject gameObject = CreateStlGameObject(meshAssetPath, material);
+                // Use the mesh we just handed to CreateAsset rather than loading it back.
+                // CreateAsset turns that very object into the asset, while
+                // LoadAssetAtPath can still return null depending on when the import
+                // settles - and a null stored here is saved into the prefab, leaving the
+                // MeshFilter permanently empty.
+                GameObject gameObject = CreateStlGameObject(
+                    Path.GetFileNameWithoutExtension(meshAssetPath), meshes[i], material);
                 gameObject.transform.SetParent(parent.transform, false);
             }
             return parent;
         }
-        
-        private static GameObject CreateStlGameObject(string meshAssetPath, Material material)
+
+        private static GameObject CreateStlGameObject(string name, Mesh mesh, Material material)
         {
-            GameObject gameObject = new GameObject(Path.GetFileNameWithoutExtension(meshAssetPath));
-            gameObject.AddComponent<MeshFilter>().sharedMesh = RuntimeUrdf.AssetDatabase_LoadAssetAtPath<Mesh>(meshAssetPath);
+            GameObject gameObject = new GameObject(name);
+            gameObject.AddComponent<MeshFilter>().sharedMesh = mesh;
             gameObject.AddComponent<MeshRenderer>().sharedMaterial = material;
+            if (mesh == null)
+            {
+                Debug.LogWarning($"No mesh for {name}; the prefab will render nothing.");
+            }
             return gameObject;
         }
         
