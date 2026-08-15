@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEditor;
@@ -21,6 +22,8 @@ namespace Unity.Robotics.UrdfImporter.Tests
 {
     public class UrdfGeometryTests
     {
+        const string k_ExportRoot = "Assets/Tests/Runtime/UrdfGeometryTests";
+
         private static IEnumerable<TestCaseData> GeometryTypesData
         {
             get
@@ -101,14 +104,18 @@ namespace Unity.Robotics.UrdfImporter.Tests
             var meshGeometry = new Geometry(mesh: new Mesh(path, new double[] {1,1,1}));
             UrdfCollisionExtensions.Create(parent, new Collision(meshGeometry));
 
-            UrdfExportPathHandler.SetExportPath("Assets");
+            // Export into a folder this fixture owns. Exporting to "Assets" writes
+            // "Assets/meshes", which is a plausible folder for the project that installed
+            // the package to be using itself - and the cleanup below would then delete it.
+            Directory.CreateDirectory(k_ExportRoot);
+            UrdfExportPathHandler.SetExportPath(k_ExportRoot);
             var t = parent.GetComponentInChildren<UrdfCollision>().transform.GetChild(0);
             var export = UrdfGeometry.ExportGeometryData(GeometryTypes.Mesh, t);
             Assert.IsNotNull(export);
 
             Object.DestroyImmediate(parent.gameObject);
             List<string> outFailedPaths = new List<string>();
-            AssetDatabase.DeleteAssets(new string[] {"Assets/meshes"}, outFailedPaths);
+            AssetDatabase.DeleteAssets(new string[] { k_ExportRoot }, outFailedPaths);
         }
 
         [Test, TestCaseSource("GeometryTypesData")]

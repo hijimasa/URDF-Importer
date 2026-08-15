@@ -175,7 +175,10 @@ namespace Unity.Robotics.UrdfImporter.Tests
         public void TearDown()
         {
             List<string> outFailedPaths = new List<string>();
-            AssetDatabase.DeleteAssets(new string[] { "Assets/Tests" }, outFailedPaths);
+            // Delete only what this fixture created. "Assets/Tests" is a
+            // shared folder that belongs to whichever project the package is
+            // installed in - wiping it takes that project's own tests with it.
+            AssetDatabase.DeleteAssets(new string[] { createAssetPath }, outFailedPaths);
         }
     }
 }

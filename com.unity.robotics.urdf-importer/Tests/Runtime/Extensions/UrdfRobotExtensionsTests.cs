@@ -145,10 +145,13 @@ namespace Unity.Robotics.UrdfImporter.Tests
         public void TearDown()
         {
             var outFailedPaths = new List<string>();
+            // Delete only what this fixture created. "Assets/Tests" is a
+            // shared folder that belongs to whichever project the package is
+            // installed in - wiping it takes that project's own tests with it.
             AssetDatabase.DeleteAssets(
                 new[]
                 {
-                    "Assets/Tests",
+                    assetRoot,
                     "Packages/com.unity.robotics.urdf-importer/Tests/Runtime/Assets/URDF/cube/Materials",
                     "Packages/com.unity.robotics.urdf-importer/Tests/Runtime/Assets/URDF/cube/meshes/cube_vhacd_1.asset",
                     "Packages/com.unity.robotics.urdf-importer/Tests/Runtime/Assets/URDF/cube/meshes/cube_vhacd_1.asset.meta"
