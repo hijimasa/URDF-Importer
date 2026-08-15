@@ -36,6 +36,164 @@ namespace Unity.Robotics.UrdfImporter
         private const float MinInertia = 1e-6f;
         private const float minMass = 0.1f;
 
+        /// <summary>
+        /// URDF の inertial を Unity の表現 (質量・重心・主慣性モーメント・主軸回転) へ
+        /// 直す。ArticulationBody を作らずに値だけ欲しい場合に使う。
+        /// </summary>
+        /// <remarks>
+        /// Create() が ArticulationBody へ書き込んでいるのと同じ計算を、書き込み先なしで
+        /// 行う。fixed 関節のリンクを親へ畳む (MergeIntoAncestorBody) ために切り出した。
+        /// </remarks>
+        public static void ComputeUnityInertial(
+            Link.Inertial inertial,
+            out float mass, out Vector3 centerOfMass,
+            out Vector3 inertiaTensor, out Quaternion inertiaTensorRotation)
+        {
+            mass = ((float)inertial.mass > 0) ? (float)inertial.mass : minMass;
+            centerOfMass = inertial.origin != null
+                ? UrdfOrigin.GetPositionFromUrdf(inertial.origin)
+                : Vector3.zero;
+
+            Matrix3x3 inertiaMatrix = ToMatrix3x3(inertial.inertia);
+            inertiaMatrix.DiagonalizeRealSymmetric(out Vector3 eigenvalues, out Vector3[] eigenvectors);
+
+            Quaternion inertialAxisRotation = Quaternion.identity;
+            if (inertial.origin != null)
+            {
+                inertialAxisRotation.eulerAngles = UrdfOrigin.GetRotationFromUrdf(inertial.origin);
+            }
+
+            inertiaTensor = ToUnityInertiaTensor(FixMinInertia(eigenvalues));
+            inertiaTensorRotation =
+                ToQuaternion(eigenvectors[0], eigenvectors[1], eigenvectors[2]).Ros2Unity()
+                * inertialAxisRotation;
+        }
+
+        /// <summary>
+        /// fixed 関節でつながるリンクの質量・慣性を、直近の祖先 ArticulationBody へ合成する。
+        /// リンク自身には ArticulationBody を作らない。
+        /// </summary>
+        /// <remarks>
+        /// PhysX の reduced-coordinate articulation は 1 階層あたり 64 ボディまでで、
+        /// 固定リンクにまでボディを作ると、センサフレームや装飾部品が多い URDF は簡単に
+        /// 上限へ達する (超えた分は黙って物理から抜け落ちる)。固定リンクは親と剛結合で
+        /// あって自由度を持たないので、質量特性を親へ足し込めば物理的に等価になる。
+        ///
+        /// 合成は「平行軸の定理で各慣性テンソルを合成重心まわりへ移し、足してから
+        /// 対角化し直す」という素直な手順で行う。GameObject の階層は触らないので、
+        /// リンク名で対象を探すセンサ取り付けや TF はこれまでどおり動く。
+        /// </remarks>
+        /// <returns>合成先が見つかって処理した場合 true。</returns>
+        public static bool MergeIntoAncestorBody(GameObject linkObject, Link.Inertial inertial)
+        {
+            ArticulationBody target = FindAncestorBody(linkObject.transform);
+            if (target == null)
+            {
+                return false;
+            }
+
+            float childMass;
+            Vector3 childCom, childTensor;
+            Quaternion childTensorRotation;
+            if (inertial != null)
+            {
+                ComputeUnityInertial(inertial, out childMass, out childCom,
+                                     out childTensor, out childTensorRotation);
+            }
+            else
+            {
+                // inertial の無いリンクは幾何だけを持つ。質量ゼロだと合成しても
+                // 何も変わらないので、そのまま抜ける (コライダーは親のボディに属する)。
+                return true;
+            }
+
+            Transform parent = target.transform;
+            // 子の重心・主軸を親のローカル系へ移す
+            Vector3 childComInParent =
+                parent.InverseTransformPoint(linkObject.transform.TransformPoint(childCom));
+            Quaternion childRotInParent =
+                (Quaternion.Inverse(parent.rotation) * linkObject.transform.rotation) * childTensorRotation;
+
+            float parentMass = target.mass;
+            Vector3 parentCom = target.centerOfMass;
+            Vector3 parentTensor = target.inertiaTensor;
+            Quaternion parentRot = target.inertiaTensorRotation;
+
+            float totalMass = parentMass + childMass;
+            if (totalMass <= 0f)
+            {
+                return true;
+            }
+            Vector3 totalCom = (parentCom * parentMass + childComInParent * childMass) / totalMass;
+
+            Matrix3x3 combined =
+                ShiftedTensor(parentTensor, parentRot, parentMass, parentCom - totalCom)
+                + ShiftedTensor(childTensor, childRotInParent, childMass, childComInParent - totalCom);
+
+            combined.DiagonalizeRealSymmetric(out Vector3 moments, out Vector3[] axes);
+            Quaternion totalRotation = ToQuaternion(axes[0], axes[1], axes[2]);
+
+            target.mass = totalMass;
+            target.centerOfMass = totalCom;
+            target.inertiaTensor = FixMinInertia(moments);
+            target.inertiaTensorRotation = totalRotation;
+
+            // UrdfInertial.Start() が保存値でボディを上書きするので、そちらも更新する。
+            // UpdateLinkData は inertiaTensorRotation * inertialAxisRotation を書くため、
+            // 逆回転を掛けて保存し、再適用しても同じ姿勢になるようにする。
+            UrdfInertial stored = target.GetComponent<UrdfInertial>();
+            if (stored != null && stored.useUrdfData)
+            {
+                stored.centerOfMass = totalCom;
+                stored.inertiaTensor = target.inertiaTensor;
+                stored.inertiaTensorRotation =
+                    totalRotation * Quaternion.Inverse(stored.inertialAxisRotation);
+            }
+            return true;
+        }
+
+        /// <summary>主慣性モーメント表現を、指定した重心オフセット分ずらした 3x3 テンソルにする。</summary>
+        private static Matrix3x3 ShiftedTensor(Vector3 principal, Quaternion rotation, float mass, Vector3 offset)
+        {
+            // R * diag(principal) * R^T で主軸表現を元の 3x3 へ戻す
+            Matrix3x3 r = ToMatrix3x3(rotation);
+            Matrix3x3 diag = new Matrix3x3(new float[][] {
+                new float[] { principal.x, 0f, 0f },
+                new float[] { 0f, principal.y, 0f },
+                new float[] { 0f, 0f, principal.z } });
+            Matrix3x3 tensor = r * diag * r.Transpose();
+
+            // 平行軸の定理: I' = I + m (|d|^2 E - d d^T)
+            float d2 = offset.sqrMagnitude;
+            Matrix3x3 shift = new Matrix3x3(new float[][] {
+                new float[] { mass * (d2 - offset.x * offset.x), mass * (-offset.x * offset.y), mass * (-offset.x * offset.z) },
+                new float[] { mass * (-offset.y * offset.x), mass * (d2 - offset.y * offset.y), mass * (-offset.y * offset.z) },
+                new float[] { mass * (-offset.z * offset.x), mass * (-offset.z * offset.y), mass * (d2 - offset.z * offset.z) } });
+            return tensor + shift;
+        }
+
+        private static Matrix3x3 ToMatrix3x3(Quaternion q)
+        {
+            Matrix4x4 m = Matrix4x4.Rotate(q);
+            return new Matrix3x3(new float[][] {
+                new float[] { m.m00, m.m01, m.m02 },
+                new float[] { m.m10, m.m11, m.m12 },
+                new float[] { m.m20, m.m21, m.m22 } });
+        }
+
+        private static ArticulationBody FindAncestorBody(Transform start)
+        {
+            for (Transform t = start.parent; t != null; t = t.parent)
+            {
+                ArticulationBody body = t.GetComponent<ArticulationBody>();
+                if (body != null)
+                {
+                    return body;
+                }
+            }
+            return null;
+        }
+
         public static void Create(GameObject linkObject, Link.Inertial inertial = null)
         {
             UrdfInertial urdfInertial = linkObject.AddComponent<UrdfInertial>();
